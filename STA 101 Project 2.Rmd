@@ -1,0 +1,163 @@
+---
+title: "Group II"
+output: html_document
+---
+
+```{r, echo = FALSE, message = FALSE}
+library(readr)
+library(asbio)
+moon <- read.csv("~/Downloads/moon.csv")
+options(scipen = 8)
+```
+
+### Summary 
+
+We have a dataset with the average number of patients admitted to a hospital per month and what cycle the moon was. We want to test if moon cycle is significant in predicting the average number of patients admitted. Since we have only one variable and it is categorical, we will use the One-Way ANOVA model of Y = µ. + gammai + Ɛi. 
+
+
+```{r, echo = FALSE}
+the.model = lm(Admission ~ Moon, data = moon)
+boxplot(Admission ~ Moon, data = moon, main = "Avererage Number of Vists by Group", ylab = "Groups", horizontal = TRUE)
+```
+
+When looking at the boxplot including average number of patients for each cycle, it appears that During a full moon there are on average more patients admitted then Before and After. During and After both appear to be heavily skewed with Before appearing very symmetric. Before and After appear to be similar in overal range with After having a higher median due to skewness. 
+
+When looking at the group means, Before and After the full moon have similar average number of patients and During has noticeably higher. All groups have 12 observations and all have similar standard deviations. 
+
+```{r, echo = FALSE}
+group.means =  by(moon$Admission , moon$Moon , mean)
+group.sds = by(moon$Admission , moon$Moon , sd)
+group.nis = by(moon$Admission , moon$Moon , length)
+the.summary = rbind(group.means , group.sds , group.nis)
+the.summary = round(the.summary , digits = 4)
+colnames(the.summary) = names(group.means)
+rownames(the.summary) = c("Means" , "Std. Dev" , "Sample Size")
+the.summary
+```
+
+
+### Data Preperation
+
+
+```{r, echo = FALSE}
+library(MASS) 
+SR = stdres(the.model)
+n = length(the.model$residuals)
+p = length(the.model$coefficients)
+alpha.t = 0.01 
+t.cutoff = qt(1- alpha.t/2, n-p)
+outliers = which(abs(SR)>t.cutoff)
+```
+
+To find any outliers, we standardized the residuals and compared them to a t-cutoff with alpha = 0.01, which was `r t.cutoff`. We did not find any values which exceeded this distance so we concluded that we have no outliers and we removed no values. 
+
+
+### Model Fitting and Interpretation 
+
+We have one categorical variable, the current moon cycle, to predict the average number of admissions. Our variable has three categories, so our model will include the mean of the After group as the intercept followed by the difference difference of Before and After and During and After. Our One-Way ANOVA model fit as a regression line is 
+
+Y = 11.4583 - 0.5417Xbefore + 4.8750Xafter
+
+
+**Hypothesis Test**
+```{r, echo = FALSE}
+smaller.model = lm(Admission ~ 1, data = moon)
+anova.table = anova(smaller.model, the.model)
+```
+
+Ho: µafter = µbefore = µduring
+
+Ha: at least one group mean is different
+
+Fs = 8.1365 with a corresponding p-value of 0.001341
+
+We tested to see if our model is significantly better than the empty model, which resulted in an F-statistic of 8.1365 and a corresponding p-value of 0.001341, which is smaller than any reasonable alpha so we conclude that our model with the group means is better at predicting the number of admissions than simply the overall average. This means that at least one group mean is not equal to the rest. 
+
+
+**$R^2$**
+
+```{r, echo = FALSE}
+r2 = summary(the.model)$r.squared
+```
+$R^2$ = 0.3303 which means there is a .3303 proportion in reduction in error when we add moon cycle to the empty model. 
+
+
+**Group Differences**
+```{r, echo = FALSE}
+bonfCI = bonfCI(moon$Admission, moon$Moon, conf.level = 0.95)
+```
+
+Furthermoore we conducted 3 Bonferroni adjusted confidence intervals to see which groups means were different. 
+
+After - Before = -3.189, 4.272
+
+After - During = -8.606, -1.144
+
+Before - During = -9.147, -1.1686
+
+We are overall 95% confident that there is no difference in group means for Before and After because the confidence interval contains 0.
+
+We are overall 95% confident that the average number of admissions for During is larger than After by between 1.144 to 8.606 admissions. 
+
+We are overall 95% confident that the average number of admissions for During is larger than Before by between 1.169 to 9.147 admissions
+
+**Parameter Confidence Intervals**
+```{r, echo = FALSE}
+confint.model = confint(the.model)
+```
+
+(Intercept)  9.330519 13.586148
+
+MoonBefore  -3.550851  2.467518
+
+MoonDuring   1.865816  7.884184
+
+Since there is no difference in means for Before and After we found the 95% confidence interval for each parameter. Before is the only group that contains 0 in the interval so we have concluded that it could be dropped from the model. We have decided to keep it in to predict the value of Before and for completeness of the model. 
+
+**Model Coefficients**
+
+The intercept of the model, 11.4583, is the average number of admissions for the After the full moon group. $\beta_1$, -0.5417, is the difference in average number of admissions for the Before group and After. $\beta_2$, 4.875, is the diffence in average number of admission for the During gourp and After.
+
+### Diagnostics
+
+To check for independence we look for any pattern in the residuals. We see no pattern so we conclude that the observations are independent. 
+
+```{r, echo = FALSE}
+plot(the.model$residuals,main = "Residual index plot",xlab = "Index",ylab = "residuals",pch = 19, col = "purple")
+```
+
+
+ 
+```{r, echo = FALSE}
+qqnorm(the.model$residuals)
+qqline(the.model$residuals)
+shap.test = shapiro.test(the.model$residuals)
+```
+
+When looking at the QQPlot our residuals appear to be distributed normally. Furthermoore, the p-value for the Shapiro-Wilks test for normality is 0.1706 which is larger than any reasonabe alpha so we conclude that our errors are distributed normal. 
+
+
+```{r, echo = FALSE}
+plot(the.model$fitted.values, the.model$residuals,pch = 19)
+abline(h= 0 , col = "purple")
+ML.test = modlevene.test(the.model$residuals, moon$Moon)
+```
+
+When plotting our residuals vs. the fitted values our data appear to have constant variance. The p-value for the Modified Levene test for constant variance is 0.7639 which is larger than any reasonable alpha so we conclude that the groups do have constant variance. 
+
+
+### Prediction
+
+The predicted number of admissions for each group are simply the averages of each group form the sample. Which is 11.4583 for After, 10.9167 for Before, and 16.3333 for During. 
+
+
+### Conclusion
+
+Overall we found that the average number of admissions for Before and After a full moon were not statistically different, and the number of admissions During a full moon was significantly higher. 
+
+
+
+
+### R Appendix
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
